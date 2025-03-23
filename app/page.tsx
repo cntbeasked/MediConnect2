@@ -1,7 +1,6 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { MediConnectLogo } from "@/components/logo"
-import { EnvSetupGuide } from "@/components/env-setup-guide"
 
 export default function Home() {
   return (
@@ -40,9 +39,6 @@ export default function Home() {
                     Log In
                   </Button>
                 </Link>
-              </div>
-              <div className="w-full max-w-2xl mt-8">
-                <EnvSetupGuide />
               </div>
             </div>
           </div>

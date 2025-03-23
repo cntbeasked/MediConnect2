@@ -12,11 +12,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { MediConnectLogo } from "@/components/logo"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const { signIn, signInWithGoogle, loading, error } = useAuth()
+  const [rememberMe, setRememberMe] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,13 +62,22 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
+              <Label htmlFor="password" className="text-lg">
+                Password
+              </Label>
               <div className="flex items-center justify-between">
-                <Label htmlFor="password" className="text-lg">
-                  Password
-                </Label>
-                <Link href="/forgot-password" className="text-base text-primary hover:underline">
-                  Forgot password?
-                </Link>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="remember"
+                    onCheckedChange={() => setRememberMe(!rememberMe)}
+                  />
+                  <label
+                    htmlFor="remember"
+                    className="text-base font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Remember me
+                  </label>
+                </div>
               </div>
               <Input
                 id="password"

@@ -77,10 +77,28 @@ export default function SelectRole() {
               onValueChange={(value) => setRole(value as "patient" | "clinician")}
               className="flex flex-col space-y-4"
             >
-              <div className="flex items-start space-x-3 border rounded-lg p-4 cursor-pointer hover:bg-muted/50">
-                <RadioGroupItem value="patient" id="patient" className="mt-1" />
+              <div 
+                className={`flex items-start space-x-3 border rounded-lg p-4 cursor-pointer transition-colors ${
+                  role === "patient" 
+                    ? "bg-blue-100 border-blue-500 border-2 shadow-sm" 
+                    : "hover:bg-muted/50 border-input"
+                }`}
+                onClick={() => setRole("patient")}
+              >
+                <input 
+                  type="radio" 
+                  name="role" 
+                  id="patient"
+                  value="patient"
+                  checked={role === "patient"}
+                  onChange={() => setRole("patient")}
+                  className="mt-1 h-5 w-5 text-blue-600 focus:ring-blue-500"
+                />
                 <div>
-                  <Label htmlFor="patient" className="text-xl font-medium">
+                  <Label 
+                    htmlFor="patient" 
+                    className={`text-xl ${role === "patient" ? "font-bold text-blue-800" : "font-medium"}`}
+                  >
                     Patient
                   </Label>
                   <p className="text-muted-foreground text-lg">
@@ -88,10 +106,28 @@ export default function SelectRole() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-start space-x-3 border rounded-lg p-4 cursor-pointer hover:bg-muted/50">
-                <RadioGroupItem value="clinician" id="clinician" className="mt-1" />
+              <div 
+                className={`flex items-start space-x-3 border rounded-lg p-4 cursor-pointer transition-colors ${
+                  role === "clinician" 
+                    ? "bg-blue-100 border-blue-500 border-2 shadow-sm" 
+                    : "hover:bg-muted/50 border-input"
+                }`}
+                onClick={() => setRole("clinician")}
+              >
+                <input 
+                  type="radio" 
+                  name="role" 
+                  id="clinician"
+                  value="clinician"
+                  checked={role === "clinician"}
+                  onChange={() => setRole("clinician")}
+                  className="mt-1 h-5 w-5 text-blue-600 focus:ring-blue-500"
+                />
                 <div>
-                  <Label htmlFor="clinician" className="text-xl font-medium">
+                  <Label 
+                    htmlFor="clinician" 
+                    className={`text-xl ${role === "clinician" ? "font-bold text-blue-800" : "font-medium"}`}
+                  >
                     Clinician
                   </Label>
                   <p className="text-muted-foreground text-lg">
