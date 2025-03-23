@@ -71,8 +71,24 @@ export function PatientChatbox({ userId }: PatientChatboxProps) {
   const [lastQueryId, setLastQueryId] = useState<string | null>(null)
   const [clinicianName, setClinicianName] = useState<string | null>(null)
   const [previousQueries, setPreviousQueries] = useState<UserQuery[]>([])
+  const [isRecording, setIsRecording] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const recognitionRef = useRef<any>(null) // Store the speech recognition instance
   const { toast } = useToast()
+
+  // Cleanup function for speech recognition
+  useEffect(() => {
+    // Cleanup the speech recognition when component unmounts
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop();
+        } catch (e) {
+          // Ignore errors on cleanup
+        }
+      }
+    };
+  }, []);
 
   // Fetch latest user query and check verification status
   useEffect(() => {
@@ -152,55 +168,193 @@ export function PatientChatbox({ userId }: PatientChatboxProps) {
     refreshUserQueries();
   }, [userId]);
 
-  // Basic voice-to-text function
+  // Function to reset speech recognition state
+  const resetSpeechRecognition = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        // Ignore errors
+      }
+      recognitionRef.current = null;
+    }
+    setIsRecording(false);
+  };
+
+  // Voice-to-text with improved debugging and feedback
   const startVoiceToText = () => {
     // Check if browser supports speech recognition
-    if (!window.webkitSpeechRecognition && !window.SpeechRecognition) {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
       toast({
         title: "Not supported",
-        description: "Voice input is not supported in your browser.",
+        description: "Voice input is not supported in your browser. Please try using Chrome.",
         variant: "destructive",
       })
       return
     }
 
+    // Stop any existing recognition session
+    resetSpeechRecognition();
+
     // Initialize speech recognition
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     const recognition = new SpeechRecognition()
+    recognitionRef.current = recognition // Store reference
     
-    // Configure
+    // Configure with more feedback
     recognition.lang = 'en-US'
-    recognition.interimResults = false
+    recognition.interimResults = true // Get interim results for better feedback
+    recognition.continuous = true     // Try continuous mode for better recognition
     recognition.maxAlternatives = 1
     
-    // Handle result
+    // Add a timeout to prevent hanging
+    const recognitionTimeout = setTimeout(() => {
+      console.log("Recognition timeout - resetting");
+      if (isRecording) {
+        resetSpeechRecognition();
+        toast({
+          title: "Recognition timeout",
+          description: "Speech recognition timed out. Please try again.",
+        });
+      }
+    }, 10000); // 10 second timeout
+    
+    // Handle interim and final results
     recognition.onresult = (event: any) => {
-      const transcript = event.results[0][0].transcript
-      setMessage(transcript)
+      try {
+        console.log("Speech recognition result received", event);
+        
+        // Result could be in different positions based on continuous mode
+        let finalTranscript = '';
+        let interimTranscript = '';
+        
+        // Process all results
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+        
+        // Update with combined transcript
+        if (finalTranscript) {
+          setMessage(finalTranscript);
+          if (!recognition.continuous) {
+            resetSpeechRecognition();
+            toast({
+              title: "Voice captured",
+              description: "Your speech has been converted to text.",
+            });
+          }
+        } else if (interimTranscript) {
+          setMessage(interimTranscript + " (listening...)");
+        }
+      } catch (error) {
+        console.error("Error processing speech result:", error);
+      }
     }
     
-    // Handle errors
-    recognition.onerror = (event: any) => {
+    // Add more event handlers for better debugging
+    recognition.onstart = () => {
+      console.log("Speech recognition started");
+      setIsRecording(true);
       toast({
-        title: "Voice error",
-        description: "Could not capture voice. Please try again.",
+        title: "Listening...",
+        description: "Speak now. Your words will appear as you speak.",
+      });
+    };
+    
+    recognition.onend = () => {
+      console.log("Speech recognition ended");
+      setIsRecording(false);
+      clearTimeout(recognitionTimeout);
+    };
+    
+    // Handle errors with more specific feedback
+    recognition.onerror = (event: any) => {
+      console.error("Speech recognition error occurred");
+      
+      // Log the complete event object for debugging
+      console.log("Error event details:", {
+        error: event.error,
+        message: event.message,
+        eventType: event.type,
+        timeStamp: event.timeStamp,
+        target: event.target
+      });
+      
+      let errorMsg = "Could not capture voice. ";
+      
+      // If event.error is undefined, check for browser-specific issues
+      if (!event.error) {
+        const ua = navigator.userAgent.toLowerCase();
+        
+        if (ua.indexOf('chrome') === -1) {
+          errorMsg += "Speech recognition works best in Chrome. Please try using Chrome browser.";
+        } else if (ua.indexOf('android') > -1 || ua.indexOf('mobile') > -1) {
+          errorMsg += "Some mobile browsers have limited speech recognition support. Try using a desktop browser.";
+        } else {
+          errorMsg += "Make sure your microphone is connected and you've granted permission to use it.";
+        }
+        
+        toast({
+          title: "Voice input issue",
+          description: errorMsg,
+          variant: "destructive",
+        });
+        
+        // Force state reset in case of error
+        setIsRecording(false);
+        return;
+      }
+      
+      switch (event.error) {
+        case 'no-speech':
+          errorMsg += "No speech was detected. Please try again.";
+          break;
+        case 'audio-capture':
+          errorMsg += "Could not access microphone. Please check your device settings.";
+          break;
+        case 'not-allowed':
+          errorMsg += "Microphone permission was denied. Please allow access in your browser settings.";
+          break;
+        case 'network':
+          errorMsg += "Network error occurred. Please check your internet connection.";
+          break;
+        case 'aborted':
+          errorMsg += "Speech recognition was aborted.";
+          break;
+        case 'language-not-supported':
+          errorMsg += "The language is not supported.";
+          break;
+        case 'service-not-allowed':
+          errorMsg += "The service is not allowed. Try reloading the page.";
+          break;
+        default:
+          errorMsg += "Please try again or use text input instead.";
+      }
+      
+      toast({
+        title: "Voice input error",
+        description: errorMsg,
         variant: "destructive",
-      })
+      });
     }
     
     // Start listening
     try {
-      recognition.start()
-      toast({
-        title: "Listening...",
-        description: "Speak now. Results will appear when you pause.",
-      })
+      recognition.start();
+      console.log("Started speech recognition");
     } catch (error) {
+      console.error("Error starting speech recognition", error);
       toast({
         title: "Error",
-        description: "Could not access microphone. Please check permissions.",
+        description: "Could not access microphone. Please check browser permissions.",
         variant: "destructive",
-      })
+      });
     }
   }
 
@@ -356,17 +510,30 @@ export function PatientChatbox({ userId }: PatientChatboxProps) {
         />
 
         <div className="flex justify-between">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={startVoiceToText}
-            disabled={isLoading}
-            className="text-base"
-            size="lg"
-          >
-            <Mic className="mr-2 h-5 w-5" />
-            Voice Input
-          </Button>
+          {isRecording ? (
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={resetSpeechRecognition}
+              className="text-base"
+              size="lg"
+            >
+              <Mic className="mr-2 h-5 w-5 animate-pulse" />
+              Stop Recording
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={startVoiceToText}
+              disabled={isLoading}
+              className="text-base"
+              size="lg"
+            >
+              <Mic className="mr-2 h-5 w-5" />
+              Voice Input
+            </Button>
+          )}
 
           <Button 
             type="button" 
