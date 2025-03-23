@@ -36,9 +36,9 @@ Ensure you have the following installed before proceeding:
    Open [http://localhost:3000](http://localhost:3000) in your browser.  
 
 ### ❗ Troubleshooting  
-If you encounter an error resembling a caching issue, try clearing the cache:  
+If you encounter an error resembling a caching issue, try clearing the cache with this command:  
 ```sh
-pnpm store prune
+rmdir /s /q .next
 ```
 Then, restart the server.
 
@@ -65,7 +65,7 @@ To mitigate the risk of inaccuracies in AI-generated responses, we've implemente
 
 Given our **elderly user base**, we have designed the platform to be:  
 ✅ **Clean and easy to navigate**  
-✅ **Speech-to-text enabled** (limited to Chrome due to security constraints in Brave)  
+✅ **Speech-to-text enabled** (limited to Chrome for now due to security constraints in Brave)  
 
 ---
 
