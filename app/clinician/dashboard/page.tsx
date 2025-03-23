@@ -45,11 +45,30 @@ export default function ClinicianDashboard() {
       }
 
       // Fetch pending queries (not verified)
+      // This will fetch ALL pending queries regardless of clinician, so they can be verified by any clinician
+      console.log("Fetching pending queries for clinician...");
       const pendingSnapshot = await queryDocuments<Query>(
         "queries", 
         where("verified", "==", false), 
         orderBy("timestamp", "desc")
       )
+
+      console.log(`Found ${pendingSnapshot.docs.length} pending queries`);
+      
+      // If there are no pending queries, let's do a broader search to debug
+      if (pendingSnapshot.empty) {
+        console.log("No pending queries found, checking if any queries exist at all...");
+        const allQueriesSnapshot = await queryDocuments<Query>("queries");
+        console.log(`Total queries in database: ${allQueriesSnapshot.docs.length}`);
+        if (!allQueriesSnapshot.empty) {
+          const sample = allQueriesSnapshot.docs[0].data();
+          console.log("Sample query data:", JSON.stringify({
+            verified: sample.verified,
+            timestamp: sample.timestamp,
+            hasUserId: !!sample.userId
+          }));
+        }
+      }
 
       const pendingData = pendingSnapshot.docs.map((doc) => ({
         id: doc.id,

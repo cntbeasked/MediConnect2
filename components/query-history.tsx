@@ -2,12 +2,12 @@
 
 import { useState } from "react"
 import { Card, CardContent } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { ThumbsUp, ThumbsDown } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { ThumbsUp, ThumbsDown, CheckCircle, User } from "lucide-react"
+import { formatDistanceToNow, format, isValid } from "date-fns"
 import { doc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useToast } from "@/components/ui/use-toast"
-import { formatDistanceToNow } from "date-fns"
 
 interface Query {
   id: string
@@ -16,13 +16,42 @@ interface Query {
   verified: boolean
   clinicianId: string | null
   clinicianName: string | null
-  timestamp: string
+  timestamp: string | { seconds: number, nanoseconds: number } | any
+  verifiedAt?: string | { seconds: number, nanoseconds: number } | any
   rating: number | null
 }
 
 interface QueryHistoryProps {
   queries: Query[]
 }
+
+// Helper function to safely format dates from Firestore
+const formatFirestoreTimestamp = (timestamp: any, formatFn: Function, defaultValue: string = "Recently") => {
+  if (!timestamp) return defaultValue;
+  
+  try {
+    // Handle Firestore timestamp objects
+    if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp) {
+      const date = new Date(timestamp.seconds * 1000);
+      if (isValid(date)) {
+        return formatFn(date);
+      }
+    }
+    
+    // Handle ISO string timestamps
+    if (typeof timestamp === 'string') {
+      const date = new Date(timestamp);
+      if (isValid(date)) {
+        return formatFn(date);
+      }
+    }
+    
+    return defaultValue;
+  } catch (error) {
+    console.error("Error formatting timestamp:", error);
+    return defaultValue;
+  }
+};
 
 export function QueryHistory({ queries }: QueryHistoryProps) {
   const { toast } = useToast()
@@ -75,43 +104,98 @@ export function QueryHistory({ queries }: QueryHistoryProps) {
   return (
     <div className="space-y-6">
       {queries.map((query) => (
-        <Card key={query.id} className="overflow-hidden">
+        <Card key={query.id} className={`overflow-hidden shadow-md border-2 ${
+          query.verified ? "border-green-200" : "border-yellow-200"
+        }`}>
           <CardContent className="p-0">
-            <div className="p-6 border-b">
+            <div className="p-6 border-b bg-slate-50">
               <div className="flex justify-between items-start mb-2">
-                <h3 className="font-bold text-xl">{query.question}</h3>
-                <span className="text-sm text-muted-foreground">
-                  {query.timestamp ? formatDistanceToNow(new Date(query.timestamp), { addSuffix: true }) : "Recently"}
+                <div>
+                  <span className="text-sm uppercase text-muted-foreground font-semibold mb-1 block">Patient Question:</span>
+                  <h3 className="font-bold text-xl">{query.question}</h3>
+                </div>
+                <span className="text-sm bg-slate-200 px-2 py-1 rounded-md text-slate-700 font-medium">
+                  {formatFirestoreTimestamp(
+                    query.timestamp,
+                    (date: Date) => formatDistanceToNow(date, { addSuffix: true })
+                  )}
                 </span>
               </div>
             </div>
 
-            <div className="p-6 bg-muted/30">
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`w-3 h-3 rounded-full ${query.verified ? "bg-green-500" : "bg-yellow-500"}`}></div>
-                <span className="font-medium">
-                  {query.verified ? `Verified by ${query.clinicianName || "Clinician"}` : "Awaiting Verification"}
-                </span>
-              </div>
-              <div className="text-lg whitespace-pre-wrap mb-4">{query.answer}</div>
+            <div className={`p-6 ${query.verified ? "bg-green-50" : "bg-yellow-50"}`}>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  {query.verified ? (
+                    <>
+                      <Badge className="bg-green-600 hover:bg-green-700 px-3 py-1">
+                        <CheckCircle className="w-4 h-4 mr-1" />
+                        <span className="text-sm font-medium">Verified by {query.clinicianName || "Clinician"}</span>
+                      </Badge>
+                      
+                      {query.verifiedAt && (
+                        <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded-full">
+                          {formatFirestoreTimestamp(
+                            query.verifiedAt,
+                            (date: Date) => format(date, "MMM d, h:mm a"),
+                            "Recently"
+                          )}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <Badge className="bg-yellow-500 hover:bg-yellow-600 px-3 py-1">
+                      <span className="text-sm font-medium">Awaiting Verification</span>
+                    </Badge>
+                  )}
+                </div>
 
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant={query.rating === 1 ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleRating(query.id, query.clinicianId, 1)}
-                  disabled={loadingRatings[query.id] || query.rating !== null}
-                >
-                  <ThumbsUp className="h-5 w-5" />
-                </Button>
-                <Button
-                  variant={query.rating === -1 ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleRating(query.id, query.clinicianId, -1)}
-                  disabled={loadingRatings[query.id] || query.rating !== null}
-                >
-                  <ThumbsDown className="h-5 w-5" />
-                </Button>
+                {query.rating !== null && (
+                  <Badge variant={query.rating === 1 ? "default" : "destructive"} className="px-3 py-1">
+                    {query.rating === 1 ? (
+                      <><ThumbsUp className="h-4 w-4 mr-1" /> Helpful</>
+                    ) : (
+                      <><ThumbsDown className="h-4 w-4 mr-1" /> Not Helpful</>
+                    )}
+                  </Badge>
+                )}
+              </div>
+
+              <div className="text-lg whitespace-pre-wrap p-4 border border-green-200 rounded-md bg-white mb-4">{query.answer}</div>
+
+              <div className="flex justify-between items-center mt-4">
+                {query.verified && query.rating === null && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-slate-700">Was this helpful?</span>
+                    <button
+                      onClick={() => handleRating(query.id, query.clinicianId, 1)}
+                      disabled={loadingRatings[query.id]}
+                      className="flex items-center bg-green-100 hover:bg-green-200 text-green-700 px-3 py-1 rounded-full text-sm"
+                    >
+                      <ThumbsUp className="h-4 w-4 mr-1" />
+                      Yes
+                    </button>
+                    <button
+                      onClick={() => handleRating(query.id, query.clinicianId, 0)}
+                      disabled={loadingRatings[query.id]}
+                      className="flex items-center bg-red-100 hover:bg-red-200 text-red-700 px-3 py-1 rounded-full text-sm"
+                    >
+                      <ThumbsDown className="h-4 w-4 mr-1" />
+                      No
+                    </button>
+                  </div>
+                )}
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <User className="h-4 w-4 mr-2 text-green-600" />
+                  <span>Patient feedback: </span>
+                  {query.rating === null ? (
+                    <span className="ml-1 text-slate-500">No feedback yet</span>
+                  ) : (
+                    <span className={`ml-1 font-medium ${query.rating === 1 ? 'text-green-600' : 'text-red-600'}`}>
+                      {query.rating === 1 ? 'Patient found this helpful' : 'Patient found this unhelpful'}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           </CardContent>

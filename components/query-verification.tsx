@@ -12,7 +12,7 @@ import { CheckCircle, Edit, Loader2 } from "lucide-react"
 
 interface Query {
   id: string
-  userId: string
+  userId?: string
   question: string
   answer: string
   verified: boolean
@@ -58,6 +58,9 @@ export function QueryVerification({ queries, clinicianId, clinicianName, onVerif
     try {
       setLoadingVerify((prev) => ({ ...prev, [queryId]: true }))
 
+      // Get the current timestamp for verification
+      const verifiedAt = new Date().toISOString()
+
       // Update the query in Firestore
       await updateDocument<Query>(
         "queries", 
@@ -67,7 +70,7 @@ export function QueryVerification({ queries, clinicianId, clinicianName, onVerif
           clinicianId,
           clinicianName,
           answer: isEdited ? answer : answer,
-          verifiedAt: new Date().toISOString(),
+          verifiedAt: verifiedAt,
         }
       )
 
@@ -104,34 +107,48 @@ export function QueryVerification({ queries, clinicianId, clinicianName, onVerif
   return (
     <div className="space-y-6">
       {queries.map((query) => (
-        <Card key={query.id} className="overflow-hidden">
+        <Card key={query.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
           <CardContent className="p-0">
-            <div className="p-6 border-b">
+            <div className="p-6 border-b bg-slate-50">
               <div className="flex justify-between items-start mb-2">
-                <h3 className="font-bold text-xl">{query.question}</h3>
-                <span className="text-sm text-muted-foreground">
+                <div>
+                  <span className="text-sm uppercase text-muted-foreground font-semibold mb-1 block">Patient Question:</span>
+                  <h3 className="font-bold text-xl">{query.question}</h3>
+                  {!query.userId && (
+                    <span className="mt-1 text-xs bg-orange-100 text-orange-800 px-2 py-1 rounded">
+                      Anonymous query - not linked to specific patient
+                    </span>
+                  )}
+                </div>
+                <span className="text-sm bg-slate-200 px-2 py-1 rounded-md text-slate-700 font-medium">
                   {query.timestamp ? formatDistanceToNow(new Date(query.timestamp), { addSuffix: true }) : "Recently"}
                 </span>
               </div>
             </div>
 
-            <div className="p-6 bg-muted/30">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium">AI-Generated Response:</span>
+            <div className="p-6 bg-white">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center">
+                  <span className="font-medium text-lg mr-2">AI-Generated Response</span>
+                  <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded-full">Needs Verification</span>
+                </div>
                 {editingId !== query.id && (
                   <Button variant="outline" size="sm" onClick={() => handleEdit(query)}>
                     <Edit className="h-4 w-4 mr-2" />
-                    Edit
+                    Edit Response
                   </Button>
                 )}
               </div>
 
               {editingId === query.id ? (
                 <div className="space-y-4">
+                  <div className="p-2 bg-blue-50 text-blue-800 text-sm rounded-md mb-2">
+                    <p>You are editing this response. Make any necessary corrections to ensure medical accuracy.</p>
+                  </div>
                   <Textarea
                     value={editedAnswer}
                     onChange={(e) => setEditedAnswer(e.target.value)}
-                    className="min-h-[200px] text-lg"
+                    className="min-h-[200px] text-lg p-4 border-2 border-blue-200 focus-visible:ring-blue-400"
                   />
 
                   <div className="flex justify-end gap-2">
@@ -141,6 +158,7 @@ export function QueryVerification({ queries, clinicianId, clinicianName, onVerif
                     <Button
                       onClick={() => handleVerify(query.id, editedAnswer, true)}
                       disabled={loadingVerify[query.id]}
+                      className="bg-green-600 hover:bg-green-700"
                     >
                       {loadingVerify[query.id] ? (
                         <>
@@ -158,22 +176,27 @@ export function QueryVerification({ queries, clinicianId, clinicianName, onVerif
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="text-lg whitespace-pre-wrap">{query.answer}</div>
+                  <div className="text-lg whitespace-pre-wrap p-4 border border-gray-200 rounded-md bg-white">{query.answer}</div>
 
-                  <div className="flex justify-end">
+                  <div className="flex items-center justify-between mt-6">
+                    <div className="text-sm text-slate-500">
+                      <p>By verifying, you confirm this response is medically accurate and appropriate for the patient.</p>
+                    </div>
                     <Button
                       onClick={() => handleVerify(query.id, query.answer, false)}
                       disabled={loadingVerify[query.id]}
+                      className="bg-green-600 hover:bg-green-700"
+                      size="lg"
                     >
                       {loadingVerify[query.id] ? (
                         <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                           Verifying...
                         </>
                       ) : (
                         <>
-                          <CheckCircle className="mr-2 h-4 w-4" />
-                          Verify
+                          <CheckCircle className="mr-2 h-5 w-5" />
+                          Verify Response
                         </>
                       )}
                     </Button>

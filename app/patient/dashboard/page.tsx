@@ -4,13 +4,13 @@ import { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth-provider"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { collection, query, where, orderBy, getDocs } from "firebase/firestore"
-import { db } from "@/lib/firebase"
+import { where, orderBy } from "firebase/firestore"
 import { PatientHeader } from "@/components/patient-header"
 import { PatientChatbox } from "@/components/patient-chatbox"
 import { QueryHistory } from "@/components/query-history"
 import { useToast } from "@/components/ui/use-toast"
 import { Loader2 } from "lucide-react"
+import { queryDocuments } from "@/lib/firestore-helpers"
 
 interface Query {
   id: string
@@ -36,15 +36,17 @@ export default function PatientDashboard() {
 
       try {
         // Fetch patient details
-        const patientDoc = await getDocs(query(collection(db, "patientDetails"), where("userId", "==", user.uid)))
+        const patientDoc = await queryDocuments("patientDetails", 
+          where("userId", "==", user.uid))
 
         if (!patientDoc.empty) {
           setPatientDetails(patientDoc.docs[0].data())
         }
 
         // Fetch patient queries
-        const queriesSnapshot = await getDocs(
-          query(collection(db, "queries"), where("userId", "==", user.uid), orderBy("timestamp", "desc")),
+        const queriesSnapshot = await queryDocuments("queries",
+          where("userId", "==", user.uid),
+          orderBy("timestamp", "desc"),
         )
 
         const queriesData = queriesSnapshot.docs.map((doc) => ({
@@ -65,6 +67,13 @@ export default function PatientDashboard() {
     }
 
     fetchPatientData()
+    
+    // Set up auto-refresh to check for new queries and verification status updates
+    const intervalId = setInterval(fetchPatientData, 10000); // Refresh every 10 seconds
+    
+    return () => {
+      clearInterval(intervalId); // Clean up interval on unmount
+    };
   }, [user, toast])
 
   if (loading) {
