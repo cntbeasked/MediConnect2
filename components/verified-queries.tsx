@@ -3,24 +3,52 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ThumbsUp, ThumbsDown, CheckCircle, User } from "lucide-react"
-import { formatDistanceToNow, format } from "date-fns"
+import { formatDistanceToNow, format, isValid } from "date-fns"
 
 interface Query {
   id: string
-  userId: string
+  userId?: string
   question: string
   answer: string
   verified: boolean
   clinicianId: string | null
   clinicianName: string | null
-  timestamp: string
-  verifiedAt?: string
+  timestamp: string | { seconds: number, nanoseconds: number } | any
+  verifiedAt?: string | { seconds: number, nanoseconds: number } | any
   rating: number | null
 }
 
 interface VerifiedQueriesProps {
   queries: Query[]
 }
+
+// Helper function to safely format dates from Firestore
+const formatFirestoreTimestamp = (timestamp: any, formatFn: Function, defaultValue: string = "Recently") => {
+  if (!timestamp) return defaultValue;
+  
+  try {
+    // Handle Firestore timestamp objects
+    if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp) {
+      const date = new Date(timestamp.seconds * 1000);
+      if (isValid(date)) {
+        return formatFn(date);
+      }
+    }
+    
+    // Handle ISO string timestamps
+    if (typeof timestamp === 'string') {
+      const date = new Date(timestamp);
+      if (isValid(date)) {
+        return formatFn(date);
+      }
+    }
+    
+    return defaultValue;
+  } catch (error) {
+    console.error("Error formatting timestamp:", error);
+    return defaultValue;
+  }
+};
 
 export function VerifiedQueries({ queries }: VerifiedQueriesProps) {
   if (queries.length === 0) {
@@ -43,7 +71,11 @@ export function VerifiedQueries({ queries }: VerifiedQueriesProps) {
                   <h3 className="font-bold text-xl">{query.question}</h3>
                 </div>
                 <span className="text-sm bg-slate-200 px-2 py-1 rounded-md text-slate-700 font-medium">
-                  {query.timestamp ? formatDistanceToNow(new Date(query.timestamp), { addSuffix: true }) : "Recently"}
+                  {formatFirestoreTimestamp(
+                    query.timestamp,
+                    (date: Date) => formatDistanceToNow(date, { addSuffix: true }),
+                    "Recently"
+                  )}
                 </span>
               </div>
             </div>
@@ -58,7 +90,11 @@ export function VerifiedQueries({ queries }: VerifiedQueriesProps) {
                   
                   {query.verifiedAt && (
                     <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded-full">
-                      {format(new Date(query.verifiedAt), "MMM d, h:mm a")}
+                      {formatFirestoreTimestamp(
+                        query.verifiedAt,
+                        (date: Date) => format(date, "MMM d, h:mm a"),
+                        "Recently"
+                      )}
                     </span>
                   )}
                 </div>

@@ -78,19 +78,57 @@ export default function ClinicianDashboard() {
       setPendingQueries(pendingData)
 
       // Fetch verified queries by this clinician
-      const verifiedSnapshot = await queryDocuments<Query>(
-        "queries",
-        where("clinicianId", "==", user.uid),
-        where("verified", "==", true),
-        orderBy("timestamp", "desc")
-      )
-
-      const verifiedData = verifiedSnapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data() as Omit<Query, 'id'>
-      }))
-
-      setVerifiedQueries(verifiedData)
+      console.log("Fetching verified queries for clinician ID:", user.uid);
+      
+      // First try with the composite query
+      try {
+        const verifiedSnapshot = await queryDocuments<Query>(
+          "queries",
+          where("clinicianId", "==", user.uid),
+          where("verified", "==", true),
+          orderBy("timestamp", "desc")
+        );
+        
+        console.log(`Found ${verifiedSnapshot.docs.length} verified queries by this clinician`);
+        
+        const verifiedData = verifiedSnapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data() as Omit<Query, 'id'>
+        }));
+        
+        setVerifiedQueries(verifiedData);
+      } catch (queryError) {
+        console.error("Error with composite query:", queryError);
+        
+        // If that fails, fall back to a simpler query
+        console.log("Falling back to simpler query...");
+        try {
+          const verifiedSnapshot = await queryDocuments<Query>(
+            "queries",
+            where("clinicianId", "==", user.uid)
+          );
+          
+          console.log(`Found ${verifiedSnapshot.docs.length} queries with this clinician ID`);
+          
+          // Filter verified ones in JavaScript
+          const verifiedData = verifiedSnapshot.docs
+            .filter(doc => doc.data().verified === true)
+            .map((doc) => ({
+              id: doc.id,
+              ...doc.data() as Omit<Query, 'id'>
+            }));
+          
+          console.log(`After filtering, found ${verifiedData.length} verified queries`);
+          setVerifiedQueries(verifiedData);
+        } catch (fallbackError: any) {
+          console.error("Error with fallback query:", fallbackError);
+          toast({
+            title: "Error fetching verified queries",
+            description: fallbackError.message,
+            variant: "destructive",
+          });
+        }
+      }
     } catch (error: any) {
       toast({
         title: "Error fetching data",

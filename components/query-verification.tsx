@@ -88,19 +88,27 @@ export function QueryVerification({ queries, clinicianId, clinicianName, onVerif
 
       // Get the current timestamp for verification
       const verifiedAt = new Date().toISOString()
+      
+      console.log(`Verifying query ${queryId} by clinician ${clinicianId} (${clinicianName})`);
 
       // Update the query in Firestore
+      const updateData = {
+        verified: true,
+        clinicianId,
+        clinicianName,
+        answer: isEdited ? answer : answer,
+        verifiedAt: verifiedAt,
+      };
+      
+      console.log("Updating with data:", JSON.stringify(updateData));
+      
       await updateDocument<Query>(
         "queries", 
         queryId, 
-        {
-          verified: true,
-          clinicianId,
-          clinicianName,
-          answer: isEdited ? answer : answer,
-          verifiedAt: verifiedAt,
-        }
+        updateData
       )
+      
+      console.log(`Successfully verified query ${queryId}`);
 
       toast({
         title: "Query verified",
