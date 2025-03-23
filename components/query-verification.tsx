@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { doc, updateDoc } from "firebase/firestore"
 import { updateDocument } from "@/lib/firestore-helpers"
 import { useToast } from "@/components/ui/use-toast"
-import { formatDistanceToNow } from "date-fns"
+import { formatDistanceToNow, format, isValid } from "date-fns"
 import { CheckCircle, Edit, Loader2 } from "lucide-react"
 
 interface Query {
@@ -18,8 +18,8 @@ interface Query {
   verified: boolean
   clinicianId: string | null
   clinicianName: string | null
-  timestamp: string
-  verifiedAt?: string
+  timestamp: string | { seconds: number, nanoseconds: number } | any
+  verifiedAt?: string | { seconds: number, nanoseconds: number } | any
 }
 
 interface QueryVerificationProps {
@@ -28,6 +28,34 @@ interface QueryVerificationProps {
   clinicianName: string | undefined
   onVerify: (queryId: string) => void
 }
+
+// Helper function to safely format dates from Firestore
+const formatFirestoreTimestamp = (timestamp: any, formatFn: Function, defaultValue: string = "Recently") => {
+  if (!timestamp) return defaultValue;
+  
+  try {
+    // Handle Firestore timestamp objects
+    if (timestamp && typeof timestamp === 'object' && 'seconds' in timestamp) {
+      const date = new Date(timestamp.seconds * 1000);
+      if (isValid(date)) {
+        return formatFn(date);
+      }
+    }
+    
+    // Handle ISO string timestamps
+    if (typeof timestamp === 'string') {
+      const date = new Date(timestamp);
+      if (isValid(date)) {
+        return formatFn(date);
+      }
+    }
+    
+    return defaultValue;
+  } catch (error) {
+    console.error("Error formatting timestamp:", error);
+    return defaultValue;
+  }
+};
 
 export function QueryVerification({ queries, clinicianId, clinicianName, onVerify }: QueryVerificationProps) {
   const { toast } = useToast()
@@ -106,7 +134,7 @@ export function QueryVerification({ queries, clinicianId, clinicianName, onVerif
 
   return (
     <div className="space-y-6">
-      {queries.map((query) => (
+      {queries.map((query: Query) => (
         <Card key={query.id} className="overflow-hidden shadow-md hover:shadow-lg transition-shadow">
           <CardContent className="p-0">
             <div className="p-6 border-b bg-slate-50">
@@ -121,7 +149,11 @@ export function QueryVerification({ queries, clinicianId, clinicianName, onVerif
                   )}
                 </div>
                 <span className="text-sm bg-slate-200 px-2 py-1 rounded-md text-slate-700 font-medium">
-                  {query.timestamp ? formatDistanceToNow(new Date(query.timestamp), { addSuffix: true }) : "Recently"}
+                  {formatFirestoreTimestamp(
+                    query.timestamp,
+                    (date: Date) => formatDistanceToNow(date, { addSuffix: true }),
+                    "Recently"
+                  )}
                 </span>
               </div>
             </div>
